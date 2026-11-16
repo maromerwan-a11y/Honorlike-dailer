@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Honor MagicOS Phone Dialer</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+          },
+          colors: {
+            honor: {
+              blue: '#0A59F7',
+              blueDark: '#3E7BFA',
+              green: '#00B853',
+              greenHover: '#009E47',
+              red: '#E84026',
+              bgLight: '#F3F5F8',
+              cardLight: '#FFFFFF',
+              bgDark: '#0B0D12',
+              cardDark: '#171A22',
+              surfaceDark: '#1F2430'
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea {
+      user-select: text;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .dial-key {
+      transition: transform 0.08s ease, background-color 0.12s ease;
+    }
+    .dial-key:active {
+      transform: scale(0.94);
+    }
+    .keypad-sheet {
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
+    }
+    .keypad-hidden {
+      transform: translateY(105%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    @keyframes pulseRing {
+      0% { transform: scale(0.95); opacity: 0.7; }
+      70% { transform: scale(1.22); opacity: 0; }
+      100% { transform: scale(1.22); opacity: 0; }
+    }
+    .call-pulse::before {
+      content: '';
+      position: absolute;
+      inset: -10px;
+      border-radius: 9999px;
+      border: 2px solid rgba(52, 211, 153, 0.55);
+      animation: pulseRing 2s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-200 dark:bg-black text-slate-900 dark:text-slate-100 min-h-screen flex flex-col items-center justify-center p-0 sm:p-4 transition-colors duration-200">
+
+  <!-- Top Prototype Controls Banner (Visible on larger screens or compact bar on mobile) -->
+  <div class="w-full max-w-[412px] bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200/80 dark:border-slate-800 rounded-none sm:rounded-t-2xl px-3.5 py-2 flex items-center justify-between text-xs shadow-sm">
+    <div class="flex items-center gap-2">
+      <span class="inline-block w-2 h-2 rounded-full bg-honor-green"></span>
+      <span class="font-semibold tracking-tight text-slate-700 dark:text-slate-200">MagicOS Dialer</span>
+      <span id="simModeBadge" class="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/70 text-honor-blue dark:text-blue-400 font-medium text-[10px]">Dual SIM</span>
+    </div>
+    <div class="flex items-center gap-1">
+      <button id="btnOpenDefaultRoleModal" type="button" class="px-2 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/80 hover:bg-blue-100 dark:hover:bg-blue-900/70 text-honor-blue dark:text-blue-400 font-semibold transition flex items-center gap-1" title="Default Phone App Role">
+        <span id="defaultRoleBadgeDot" class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+        <span id="defaultRoleBtnText">Set Default</span>
+      </button>
+      <button id="btnSimulateIncoming" type="button" class="px-2 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/70 text-honor-green font-semibold transition" title="Simulate Incoming Call">
+        Ring
+      </button>
+      <button id="btnToggleSimMode" type="button" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition" title="Switch Single / Dual SIM">
+        1/2 SIM
+      </button>
+      <button id="btnToggleSound" type="button" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition" title="Toggle DTMF Keypad Tones">
+        <span id="soundLabel">SFX On</span>
+      </button>
+      <button id="btnToggleTheme" type="button" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium transition" title="Switch Light / Dark Mode">
+        <span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Phone Device Viewport Container -->
+  <div id="phoneFrame" class="relative w-full max-w-[412px] h-[calc(100vh-40px)] sm:h-[812px] bg-honor-bgLight dark:bg-honor-bgDark sm:rounded-b-[34px] sm:shadow-2xl sm:border-x sm:border-b sm:border-slate-300 dark:sm:border-slate-800 overflow-hidden flex flex-col">
+
+    <!-- Honor MagicOS Status Bar -->
+    <div class="h-8 px-5 flex items-center justify-between text-[11px] font-medium text-slate-700 dark:text-slate-300 shrink-0 select-none">
+      <div class="flex items-center gap-1.5">
+        <span id="statusClock">11:37</span>
+        <span class="text-[10px] text-slate-400 dark:text-slate-500">HD</span>
+      </div>
+      <!-- Punch-hole camera indicator on desktop preview -->
+      <div class="hidden sm:block w-3 h-3 rounded-full bg-black/80 dark:bg-black border border-slate-700/40"></div>
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] font-semibold tracking-tighter">5G</span>
+        <!-- Signal Bars -->
+        <svg class="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="11" width="2" height="4" rx="0.5"/>
+          <rect x="4.5" y="8.5" width="2" height="6.5" rx="0.5"/>
+          <rect x="8" y="5.5" width="2" height="9.5" rx="0.5"/>
+          <rect x="11.5" y="2.5" width="2" height="12.5" rx="0.5"/>
+        </svg>
+        <!-- Wi-Fi -->
+        <svg class="w-3.5 h-3.5 text-slate-700 dark:text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+          <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+          <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+          <circle cx="12" cy="20" r="1" fill="currentColor"/>
+        </svg>
+        <!-- Battery -->
+        <div class="flex items-center gap-0.5">
+          <div class="w-5 h-2.5 rounded-[3px] border border-slate-600 dark:border-slate-400 p-[1.5px] flex items-center">
+            <div class="w-3.5 h-full bg-honor-green rounded-[1px]"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification Banner -->
+    <div id="toastBanner" class="hidden absolute top-10 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 text-xs font-medium px-4 py-2 rounded-full shadow-lg transition-all">
+      Action completed
+    </div>
+
+    <!-- ==================== TAB 1: PHONE (RECENTS + T9 + KEYPAD) ==================== -->
+    <div id="viewPhone" class="flex-1 flex flex-col overflow-hidden relative">
+      <!-- Android ROLE_DIALER Default Phone App Banner -->
+      <div id="defaultDialerBanner" class="mx-3.5 mt-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm flex items-center justify-between gap-2 shrink-0">
+        <div class="min-w-0">
+          <div class="text-xs font-bold tracking-tight">Set as Default Phone App</div>
+          <div class="text-[10px] text-blue-100 truncate">Required to handle system calls &amp; SIM routing</div>
+        </div>
+        <button id="btnBannerSetDefault" type="button" class="px-3 py-1 rounded-full bg-white text-honor-blue text-[11px] font-bold shrink-0 shadow-sm hover:bg-blue-50 transition">
+          Enable
+        </button>
+      </div>
+
+      <!-- Phone Top Header Bar -->
+      <div class="px-5 pt-2 pb-2.5 flex items-center justify-between shrink-0">
+        <!-- Segmented All / Missed Calls Switcher -->
+        <div class="flex items-center bg-slate-200/80 dark:bg-honor-cardDark p-1 rounded-full">
+          <button id="btnFilterAll" type="button" class="px-3.5 py-1 rounded-full text-xs font-semibold transition bg-white dark:bg-honor-surfaceDark text-slate-900 dark:text-white shadow-sm">
+            All calls
+          </button>
+          <button id="btnFilterMissed" type="button" class="px-3.5 py-1 rounded-full text-xs font-medium transition text-slate-600 dark:text-slate-400 flex items-center gap-1">
+            <span>Missed</span>
+            <span id="missedBadge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-honor-red text-white font-semibold">2</span>
+          </button>
+        </div>
+
+        <!-- Top Right Actions -->
+        <div class="flex items-center gap-1.5">
+          <button id="btnOpenSpeedDialModal" type="button" class="p-2 rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition" title="Speed Dial Slots">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            </svg>
+          </button>
+          <button id="btnOpenNewContactTop" type="button" class="p-2 rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition" title="New Contact">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <button id="btnClearLogs" type="button" class="p-2 rounded-full hover:bg-slate-200/70 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition" title="Clear Call History">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- T9 Active Filter Banner (Shown when dialing digits) -->
+      <div id="t9HeaderBar" class="hidden px-5 py-1.5 bg-blue-50/90 dark:bg-blue-950/40 border-y border-blue-100 dark:border-blue-900/40 flex items-center justify-between text-xs shrink-0">
+        <div class="flex items-center gap-1.5 text-honor-blue dark:text-blue-400 font-medium">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/>
+          </svg>
+          <span id="t9MatchSummary">T9 Smart Search</span>
+        </div>
+        <button id="btnAddDialedToContacts" type="button" class="text-honor-blue dark:text-blue-400 font-semibold hover:underline">
+          + Save Number
+        </button>
+      </div>
+
+      <!-- Call Log / T9 Results Scrollable Area -->
+      <div id="callLogScroll" class="flex-1 overflow-y-auto no-scrollbar px-3.5 pb-6 space-y-2">
+        <div id="callLogList" class="bg-white dark:bg-honor-cardDark rounded-2xl shadow-sm divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden">
+          <!-- Populated dynamically via JS -->
+        </div>
+      </div>
+
+      <!-- Floating Expand Keypad Button (Visible when Keypad is minimized) -->
+      <button id="btnFloatingKeypad" type="button" class="hidden absolute bottom-4 right-5 z-20 w-14 h-14 rounded-full bg-honor-green hover:bg-honor-greenHover text-white shadow-xl flex items-center justify-center transition transform active:scale-95" title="Show Keypad">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="6" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="18" cy="5" r="1.8"/>
+          <circle cx="6" cy="11" r="1.8"/><circle cx="12" cy="11" r="1.8"/><circle cx="18" cy="11" r="1.8"/>
+          <circle cx="6" cy="17" r="1.8"/><circle cx="12" cy="17" r="1.8"/><circle cx="18" cy="17" r="1.8"/>
+          <circle cx="12" cy="21.5" r="1.5"/>
+        </svg>
+      </button>
+
+      <!-- Honor MagicOS Bottom Collapsible Keypad Sheet -->
+      <div id="keypadSheet" class="keypad-sheet bg-white/95 dark:bg-honor-cardDark/95 backdrop-blur-md rounded-t-[28px] shadow-[0_-8px_30px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_30px_rgba(0,0,0,0.45)] border-t border-slate-200/70 dark:border-slate-800/80 px-4 pt-2 pb-3 shrink-0 z-10">
+
+        <!-- Drag Handle -->
+        <div class="w-9 h-1 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mb-1.5"></div>
+
+        <!-- Dialed Number Display Bar -->
+        <div id="dialDisplayRow" class="min-h-[48px] px-2 flex items-center justify-between gap-2 mb-1">
+          <button id="btnCopyNumber" type="button" class="opacity-0 pointer-events-none p-2 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Copy Number">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+
+          <div class="flex-1 text-center overflow-hidden">
+            <div id="dialedNumberText" class="text-2xl font-semibold tracking-wide text-slate-900 dark:text-white truncate min-h-[32px]"></div>
+            <div id="dialedSubText" class="text-[11px] text-slate-400 dark:text-slate-500 truncate">Type number or T9 letters to search</div>
+          </div>
+
+          <div class="flex items-center gap-0.5">
+            <button id="btnBackspace" type="button" class="opacity-0 pointer-events-none p-2 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition" title="Backspace">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
+                <line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/>
+              </svg>
+            </button>
+            <button id="btnClearDialInput" type="button" class="hidden px-1.5 py-1 rounded text-[10px] font-semibold text-slate-400 hover:text-honor-red transition" title="Clear All">
+              CLR
+            </button>
+          </div>
+        </div>
+
+        <!-- Honor 4x3 Numeric Keypad Grid -->
+        <div id="keypadGrid" class="grid grid-cols-3 gap-y-1.5 gap-x-3 select-none mb-2.5">
+          <!-- Key 1 -->
+          <button type="button" data-digit="1" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">1</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-0.5">
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="12" r="4"/><circle cx="18" cy="12" r="4"/><line x1="6" y1="16" x2="18" y2="16"/></svg>
+            </span>
+          </button>
+          <!-- Key 2 -->
+          <button type="button" data-digit="2" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">2</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">ABC</span>
+          </button>
+          <!-- Key 3 -->
+          <button type="button" data-digit="3" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">3</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">DEF</span>
+          </button>
+          <!-- Key 4 -->
+          <button type="button" data-digit="4" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">4</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">GHI</span>
+          </button>
+          <!-- Key 5 -->
+          <button type="button" data-digit="5" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">5</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">JKL</span>
+          </button>
+          <!-- Key 6 -->
+          <button type="button" data-digit="6" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">6</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">MNO</span>
+          </button>
+          <!-- Key 7 -->
+          <button type="button" data-digit="7" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">7</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">PQRS</span>
+          </button>
+          <!-- Key 8 -->
+          <button type="button" data-digit="8" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">8</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">TUV</span>
+          </button>
+          <!-- Key 9 -->
+          <button type="button" data-digit="9" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">9</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">WXYZ</span>
+          </button>
+          <!-- Key * -->
+          <button type="button" data-digit="*" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">*</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">,</span>
+          </button>
+          <!-- Key 0 -->
+          <button id="keyZero" type="button" data-digit="0" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">0</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">+</span>
+          </button>
+          <!-- Key # -->
+          <button type="button" data-digit="#" class="dial-key py-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex flex-col items-center justify-center">
+            <span class="text-2xl font-medium leading-none text-slate-900 dark:text-white">#</span>
+            <span class="text-[9px] font-semibold tracking-widest text-slate-400 dark:text-slate-500 mt-1">;</span>
+          </button>
+        </div>
+
+        <!-- Honor Dual-SIM / Single-SIM Call Action Row -->
+        <div class="flex items-center justify-between gap-2 px-2 pt-1">
+          <!-- Left: Insert "+" / Quick Speed Dial Button -->
+          <button id="btnInsertPlus" type="button" class="w-11 h-11 rounded-full hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex items-center justify-center text-slate-600 dark:text-slate-300 font-semibold text-sm transition" title="Insert + Prefix">
+            +
+          </button>
+
+          <!-- Center: Dual SIM Pill Buttons -->
+          <div id="dualSimCallContainer" class="flex-1 flex items-center justify-center gap-2.5 max-w-[240px]">
+            <button id="btnCallSim1" type="button" class="flex-1 h-12 rounded-full bg-honor-green hover:bg-honor-greenHover active:scale-95 text-white shadow-md flex items-center justify-center gap-1.5 px-3 transition">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              <div class="text-left leading-tight">
+                <div class="text-xs font-bold">SIM 1</div>
+                <div class="text-[9px] opacity-85 font-medium">5G · Main</div>
+              </div>
+            </button>
+
+            <button id="btnCallSim2" type="button" class="flex-1 h-12 rounded-full bg-honor-green hover:bg-honor-greenHover active:scale-95 text-white shadow-md flex items-center justify-center gap-1.5 px-3 transition">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              <div class="text-left leading-tight">
+                <div class="text-xs font-bold">SIM 2</div>
+                <div class="text-[9px] opacity-85 font-medium">VoLTE · Work</div>
+              </div>
+            </button>
+          </div>
+
+          <!-- Right: Collapse Keypad Button -->
+          <button id="btnHideKeypad" type="button" class="w-11 h-11 rounded-full hover:bg-slate-100 dark:hover:bg-honor-surfaceDark flex items-center justify-center text-slate-600 dark:text-slate-300 transition" title="Hide Keypad">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: CONTACTS ==================== -->
+    <div id="viewContacts" class="hidden flex-1 flex flex-col overflow-hidden relative">
+      <!-- Contacts Header -->
+      <div class="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Contacts</h1>
+          <p id="contactsCountSubtitle" class="text-xs text-slate-500 dark:text-slate-400">10 contacts stored on device</p>
+        </div>
+        <button id="btnAddContactFromTab" type="button" class="px-3 py-1.5 rounded-full bg-honor-blue text-white text-xs font-semibold shadow-sm hover:opacity-95 transition flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+          <span>Add</span>
+        </button>
+      </div>
+
+      <!-- Contacts Search Input -->
+      <div class="px-4 pb-2.5 shrink-0">
+        <div class="relative flex items-center">
+          <svg class="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/>
+          </svg>
+          <input id="inputSearchContacts" type="text" placeholder="Search contacts, roles, or numbers..." class="w-full pl-9 pr-8 py-2 rounded-2xl bg-slate-200/75 dark:bg-honor-cardDark text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-honor-blue" />
+          <button id="btnClearContactSearch" type="button" class="hidden absolute right-2.5 p-1 text-slate-400 hover:text-slate-600">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Contacts List -->
+      <div id="contactsListContainer" class="flex-1 overflow-y-auto no-scrollbar px-3.5 pb-6 space-y-2">
+        <!-- Populated dynamically via JS -->
+      </div>
+    </div>
+
+    <!-- ==================== TAB 3: FAVORITES & SPEED DIAL ==================== -->
+    <div id="viewFavorites" class="hidden flex-1 flex flex-col overflow-hidden relative">
+      <div class="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Favorites</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400">One-tap speed dial & starred lines</p>
+        </div>
+        <button id="btnManageSpeedDialFav" type="button" class="px-3 py-1.5 rounded-full bg-slate-200/80 dark:bg-honor-cardDark text-slate-700 dark:text-slate-200 text-xs font-semibold hover:opacity-90 transition">
+          Speed Dial (2–9)
+        </button>
+      </div>
+
+      <div id="favoritesListContainer" class="flex-1 overflow-y-auto no-scrollbar px-3.5 pb-6 space-y-3">
+        <!-- Populated dynamically via JS -->
+      </div>
+    </div>
+
+    <!-- ==================== HONOR MAGICOS BOTTOM TAB BAR ==================== -->
+    <div class="h-16 bg-white/95 dark:bg-honor-cardDark/95 backdrop-blur border-t border-slate-200/80 dark:border-slate-800/80 grid grid-cols-3 shrink-0 z-20">
+      <button id="tabBtnPhone" type="button" class="flex flex-col items-center justify-center gap-1 text-honor-blue dark:text-blue-400 transition">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+        <span class="text-[11px] font-semibold">Phone</span>
+      </button>
+
+      <button id="tabBtnContacts" type="button" class="flex flex-col items-center justify-center gap-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span class="text-[11px] font-medium">Contacts</span>
+      </button>
+
+      <button id="tabBtnFavorites" type="button" class="flex flex-col items-center justify-center gap-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        <span class="text-[11px] font-medium">Favorites</span>
+      </button>
+    </div>
+
+    <!-- ==================== OVERLAY 1: HONOR IN-CALL SCREEN ==================== -->
+    <div id="inCallOverlay" class="hidden absolute inset-0 z-40 bg-gradient-to-b from-slate-900 via-slate-900 to-black text-white flex flex-col justify-between px-6 py-8">
+      <!-- Top Call Info -->
+      <div class="text-center mt-4">
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-medium text-emerald-300 mb-4">
+          <span id="inCallSimBadge">SIM 1 · HD Voice</span>
+        </div>
+        <div class="relative w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-emerald-500 mx-auto flex items-center justify-center text-2xl font-bold shadow-lg call-pulse mb-4" id="inCallAvatar">
+          BT
+        </div>
+        <h2 id="inCallName" class="text-2xl font-bold tracking-tight">B.TECH Marketing Desk</h2>
+        <p id="inCallNumber" class="text-sm text-slate-300 mt-1">19966</p>
+        <p id="inCallTimer" class="text-xs font-semibold text-emerald-400 mt-2 tracking-wider uppercase">Dialing...</p>
+        <div id="inCallRecordBadge" class="hidden mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/40 text-red-300 text-[11px]">
+          <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+          <span>Recording call</span>
+        </div>
+      </div>
+
+      <!-- In-Call DTMF Sub-Keypad (Hidden unless Keypad toggled during call) -->
+      <div id="inCallDtmfPad" class="hidden bg-white/10 backdrop-blur-md rounded-2xl p-3 my-2">
+        <div id="inCallDtmfDisplay" class="text-center text-lg font-mono tracking-widest text-emerald-300 h-6 mb-2"></div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <button type="button" data-incall-digit="1" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">1</button>
+          <button type="button" data-incall-digit="2" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">2</button>
+          <button type="button" data-incall-digit="3" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">3</button>
+          <button type="button" data-incall-digit="4" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">4</button>
+          <button type="button" data-incall-digit="5" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">5</button>
+          <button type="button" data-incall-digit="6" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">6</button>
+          <button type="button" data-incall-digit="7" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">7</button>
+          <button type="button" data-incall-digit="8" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">8</button>
+          <button type="button" data-incall-digit="9" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">9</button>
+          <button type="button" data-incall-digit="*" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">*</button>
+          <button type="button" data-incall-digit="0" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">0</button>
+          <button type="button" data-incall-digit="#" class="py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-base font-semibold">#</button>
+        </div>
+      </div>
+
+      <!-- In-Call 6-Action Grid + End Call -->
+      <div class="space-y-6 mb-2">
+        <div class="grid grid-cols-3 gap-y-4 gap-x-4 text-center">
+          <button id="btnInCallRecord" type="button" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>
+            </div>
+            <span class="text-[11px] text-slate-300">Record</span>
+          </button>
+
+          <button id="btnInCallMute" type="button" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+            </div>
+            <span class="text-[11px] text-slate-300">Mute</span>
+          </button>
+
+          <button id="btnInCallHold" type="button" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </div>
+            <span class="text-[11px] text-slate-300">Hold</span>
+          </button>
+
+          <button id="btnInCallSpeaker" type="button" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            </div>
+            <span class="text-[11px] text-slate-300">Speaker</span>
+          </button>
+
+          <button id="btnInCallKeypad" type="button" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/>
+                <circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/>
+                <circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/>
+              </svg>
+            </div>
+            <span class="text-[11px] text-slate-300">Keypad</span>
+          </button>
+
+          <button id="btnInCallSimSwitch" type="button" class="flex flex-col items-center gap-1.5 group">
+            <div class="w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.2v-2a4 4 0 0 1 4-4h12.8M7 21.9l-4-4 4-4"/><path d="M21 11.8v2a4 4 0 0 1-4 4H4.2"/></svg>
+            </div>
+            <span class="text-[11px] text-slate-300">Switch SIM</span>
+          </button>
+        </div>
+
+        <div class="flex justify-center pt-2">
+          <button id="btnEndCall" type="button" class="w-16 h-16 rounded-full bg-honor-red hover:bg-red-600 active:scale-95 text-white shadow-xl flex items-center justify-center transition">
+            <svg class="w-7 h-7 rotate-[135deg]" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY 2: ADD / EDIT CONTACT MODAL ==================== -->
+    <div id="contactModal" class="hidden absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full bg-white dark:bg-honor-cardDark rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 id="contactModalTitle" class="text-base font-bold text-slate-900 dark:text-white">New Contact</h3>
+          <button id="btnCloseContactModal" type="button" class="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <form id="formContact" class="space-y-3">
+          <input type="hidden" id="contactIdInput" value="" />
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Name / Label</label>
+            <input id="contactNameInput" type="text" required placeholder="e.g., B.TECH Support Desk" class="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-honor-surfaceDark text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-honor-blue" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Phone Number</label>
+            <input id="contactNumberInput" type="tel" required placeholder="e.g., 01001234567 or 19966" class="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-honor-surfaceDark text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-honor-blue" />
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Category / Tag</label>
+              <input id="contactTagInput" type="text" placeholder="Work, Service, Home" class="w-full px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-honor-surfaceDark text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-honor-blue" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Preferred SIM</label>
+              <select id="contactSimInput" class="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-honor-surfaceDark text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-honor-blue">
+                <option value="1">SIM 1 (Main)</option>
+                <option value="2">SIM 2 (Work)</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <label class="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+              <input id="contactFavInput" type="checkbox" class="rounded text-honor-blue focus:ring-honor-blue" />
+              <span>Add to Favorites</span>
+            </label>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-slate-500 dark:text-slate-400">Speed Dial:</label>
+              <select id="contactSpeedSlotInput" class="px-2 py-1 rounded-lg bg-slate-100 dark:bg-honor-surfaceDark text-xs text-slate-900 dark:text-white">
+                <option value="">None</option>
+                <option value="2">Key 2</option>
+                <option value="3">Key 3</option>
+                <option value="4">Key 4</option>
+                <option value="5">Key 5</option>
+                <option value="6">Key 6</option>
+                <option value="7">Key 7</option>
+                <option value="8">Key 8</option>
+                <option value="9">Key 9</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-2 pt-2">
+            <button id="btnDeleteContactModal" type="button" class="hidden mr-auto px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/50 text-honor-red text-xs font-semibold">
+              Delete
+            </button>
+            <button id="btnCancelContactModal" type="button" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 rounded-xl bg-honor-blue text-white text-xs font-semibold shadow-sm">
+              Save Contact
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY 4: ANDROID SYSTEM DEFAULT DIALER ROLE DIALOG ==================== -->
+    <div id="defaultRoleModal" class="hidden absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full bg-white dark:bg-honor-cardDark rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+        <div class="flex flex-col items-center text-center space-y-1.5">
+          <div class="w-11 h-11 rounded-2xl bg-blue-50 dark:bg-blue-950/80 text-honor-blue dark:text-blue-400 flex items-center justify-center mb-1">
+            <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </div>
+          <h3 class="text-sm font-bold text-slate-900 dark:text-white">Set Honor MagicOS Dialer as your default Phone app?</h3>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+            Android RoleManager (<code class="text-[10px] font-mono">android.app.role.DIALER</code>) grants permission to place Dual-SIM calls, display the full-screen InCallService UI, and manage call logs.
+          </p>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <label class="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-800 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-xs font-bold">SYS</div>
+              <div>
+                <div class="text-xs font-semibold text-slate-800 dark:text-slate-200">System Phone</div>
+                <div class="text-[10px] text-slate-400">Stock Android Dialer</div>
+              </div>
+            </div>
+            <input type="radio" name="defaultDialerChoice" value="system" class="text-honor-blue focus:ring-honor-blue" />
+          </label>
+
+          <label class="flex items-center justify-between p-3 rounded-2xl border-2 border-honor-blue bg-blue-50/40 dark:bg-blue-950/30 cursor-pointer">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-xl bg-honor-green text-white flex items-center justify-center text-xs font-bold">HM</div>
+              <div>
+                <div class="text-xs font-bold text-slate-900 dark:text-white">Honor MagicOS Dialer</div>
+                <div class="text-[10px] text-honor-blue dark:text-blue-400 font-medium">InCallService + Dual-SIM + T9</div>
+              </div>
+            </div>
+            <input type="radio" name="defaultDialerChoice" value="honor" checked class="text-honor-blue focus:ring-honor-blue" />
+          </label>
+        </div>
+
+        <div class="rounded-xl bg-slate-100 dark:bg-honor-surfaceDark p-2.5 text-[10px] text-slate-500 dark:text-slate-400 space-y-1">
+          <div class="font-semibold text-slate-700 dark:text-slate-200">Configured Android Manifest Capabilities:</div>
+          <div>• <span class="font-mono">RoleManager.ROLE_DIALER</span> &amp; <span class="font-mono">ACTION_CHANGE_DEFAULT_DIALER</span></div>
+          <div>• <span class="font-mono">android.telecom.InCallService</span> (<span class="font-mono">BIND_INCALL_SERVICE</span>)</div>
+          <div>• Intent filters: <span class="font-mono">ACTION_DIAL</span>, <span class="font-mono">ACTION_VIEW (tel:)</span></div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-1">
+          <button id="btnCancelDefaultRole" type="button" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300">
+            Cancel
+          </button>
+          <button id="btnConfirmDefaultRole" type="button" class="px-5 py-2 rounded-xl bg-honor-blue text-white text-xs font-semibold shadow-sm hover:opacity-95 transition">
+            Set as default
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY 5: HONOR INCOMING CALL SCREEN ==================== -->
+    <div id="incomingCallOverlay" class="hidden absolute inset-0 z-50 bg-gradient-to-b from-slate-900 via-slate-950 to-black text-white flex flex-col justify-between px-6 py-10">
+      <div class="text-center mt-6">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-xs font-semibold text-emerald-300 mb-5">
+          <span id="incomingSimBadge">SIM 1 · Incoming HD Call</span>
+        </div>
+        <div class="relative w-24 h-24 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 mx-auto flex items-center justify-center text-3xl font-bold shadow-xl call-pulse mb-5" id="incomingAvatar">
+          FG
+        </div>
+        <h2 id="incomingName" class="text-2xl font-bold tracking-tight">Family (Grandmother)</h2>
+        <p id="incomingNumber" class="text-sm text-slate-300 mt-1">01004528810 · Egypt Mobile</p>
+        <p class="text-xs text-emerald-400 font-medium mt-2 animate-pulse">Honor InCallService Active...</p>
+      </div>
+
+      <div class="space-y-6 mb-4">
+        <div class="flex items-center justify-center gap-3">
+          <button id="btnQuickSmsReply" type="button" class="px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs text-slate-200 transition">
+            💬 Can't talk right now, I'll call you back
+          </button>
+        </div>
+
+        <div class="flex items-center justify-around px-6 pt-2">
+          <div class="flex flex-col items-center gap-2">
+            <button id="btnDeclineIncoming" type="button" class="w-16 h-16 rounded-full bg-honor-red hover:bg-red-600 active:scale-95 text-white shadow-xl flex items-center justify-center transition">
+              <svg class="w-7 h-7 rotate-[135deg]" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </button>
+            <span class="text-xs text-slate-300 font-medium">Decline</span>
+          </div>
+
+          <div class="flex flex-col items-center gap-2">
+            <button id="btnAnswerIncoming" type="button" class="w-16 h-16 rounded-full bg-honor-green hover:bg-honor-greenHover active:scale-95 text-white shadow-xl flex items-center justify-center transition">
+              <svg class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </button>
+            <span class="text-xs text-emerald-300 font-semibold">Answer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== OVERLAY 3: SPEED DIAL SLOTS VIEWER ==================== -->
+    <div id="speedDialModal" class="hidden absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div class="w-full bg-white dark:bg-honor-cardDark rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-bold text-slate-900 dark:text-white">Honor Speed Dial (Keys 2–9)</h3>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400">Tap any assigned slot to dial immediately</p>
+          </div>
+          <button id="btnCloseSpeedDialModal" type="button" class="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div id="speedDialGrid" class="grid grid-cols-2 gap-2 max-h-[360px] overflow-y-auto no-scrollbar">
+          <!-- Populated via JS -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    (function () {
+      // --- T9 Character Mapping ---
+      const T9_MAP = {
+        '2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl',
+        '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'
+      };
+      const LETTER_TO_T9 = {};
+      Object.keys(T9_MAP).forEach(digit => {
+        for (const ch of T9_MAP[digit]) {
+          LETTER_TO_T9[ch] = digit;
+        }
+      });
+
+      // --- Initial Grounded / Role-Based Contacts & Service Lines ---
+      const INITIAL_CONTACTS = [
+        { id: 'c1', name: 'B.TECH Marketing Desk', number: '19966', tag: 'Work · B.TECH', sim: 2, favorite: true, speedSlot: 2, color: 'from-blue-600 to-indigo-600' },
+        { id: 'c2', name: 'Family (Grandmother)', number: '01004528810', tag: 'Family · Mobile', sim: 1, favorite: true, speedSlot: 3, color: 'from-emerald-500 to-teal-600' },
+        { id: 'c3', name: 'Semsem Kitchen Orders', number: '01289004411', tag: 'Project · Semsem', sim: 1, favorite: true, speedSlot: 4, color: 'from-amber-500 to-orange-600' },
+        { id: 'c4', name: 'Anas Al Demashky Delivery', number: '15993', tag: 'Food · Delivery', sim: 1, favorite: false, speedSlot: 5, color: 'from-rose-500 to-red-600' },
+        { id: 'c5', name: 'Abou Anas El Soury', number: '16477', tag: 'Food · Delivery', sim: 1, favorite: false, speedSlot: null, color: 'from-orange-500 to-red-500' },
+        { id: 'c6', name: 'Veterinary Care Clinic', number: '01092233100', tag: 'Pet Care · Cairo', sim: 1, favorite: true, speedSlot: 6, color: 'from-purple-500 to-indigo-600' },
+        { id: 'c7', name: 'Vodafone Egypt Care', number: '888', tag: 'Carrier · SIM 1', sim: 1, favorite: false, speedSlot: 7, color: 'from-red-600 to-rose-700' },
+        { id: 'c8', name: 'Orange Egypt Care', number: '110', tag: 'Carrier · SIM 2', sim: 2, favorite: false, speedSlot: 8, color: 'from-orange-500 to-amber-600' },
+        { id: 'c9', name: 'Telecom Egypt Support', number: '111', tag: 'Internet & Landline', sim: 1, favorite: false, speedSlot: 9, color: 'from-indigo-600 to-purple-700' },
+        { id: 'c10', name: 'Emergency Ambulance', number: '123', tag: 'Emergency Service', sim: 1, favorite: false, speedSlot: null, color: 'from-red-500 to-rose-600' }
+      ];
+
+      const INITIAL_CALL_LOGS = [
+        { id: 'l1', contactId: 'c1', name: 'B.TECH Marketing Desk', number: '19966', type: 'outgoing', sim: 2, time: '10:45 AM', duration: '04:12', count: 3, location: 'Cairo · Work Line' },
+        { id: 'l2', contactId: 'c2', name: 'Family (Grandmother)', number: '01004528810', type: 'incoming', sim: 1, time: '09:20 AM', duration: '08:34', count: 1, location: 'Egypt · Mobile' },
+        { id: 'l3', contactId: 'c6', name: 'Veterinary Care Clinic', number: '01092233100', type: 'missed', sim: 1, time: 'Yesterday', duration: 'Missed', count: 2, location: 'Cairo · Pet Care' },
+        { id: 'l4', contactId: 'c4', name: 'Anas Al Demashky Delivery', number: '15993', type: 'outgoing', sim: 1, time: 'Yesterday', duration: '01:45', count: 1, location: 'Shortcode · Food' },
+        { id: 'l5', contactId: null, name: '+20 106 882 1940', number: '01068821940', type: 'missed', sim: 2, time: 'Yesterday', duration: 'Missed', count: 1, location: 'Giza · Unknown' },
+        { id: 'l6', contactId: 'c3', name: 'Semsem Kitchen Orders', number: '01289004411', type: 'incoming', sim: 1, time: 'Nov 14', duration: '03:18', count: 4, location: 'Egypt · Mobile' }
+      ];
+
+      // --- State ---
+      const state = {
+        activeTab: 'phone', // 'phone' | 'contacts' | 'favorites'
+        callFilter: 'all',  // 'all' | 'missed'
+        dialInput: '',
+        keypadVisible: true,
+        dualSimMode: true,
+        soundEnabled: true,
+        darkMode: false,
+          isDefaultDialer: false,
+        contactSearch: '',
+        contacts: [...INITIAL_CONTACTS],
+        callLogs: [...INITIAL_CALL_LOGS],
+        activeCall: null,   // { name, number, sim, status, seconds, muted, speaker, onHold, recording, dtmfSent }
+        callInterval: null,
+        connectTimeout: null
+      };
+
+      // Load saved state safely if available
+      try {
+        const savedContacts = localStorage.getItem('honor_dialer_contacts_v1');
+        if (savedContacts) state.contacts = JSON.parse(savedContacts);
+        const savedLogs = localStorage.getItem('honor_dialer_logs_v1');
+        if (savedLogs) state.callLogs = JSON.parse(savedLogs);
+      } catch (e) {}
+
+      function persistState() {
+        try {
+          localStorage.setItem('honor_dialer_contacts_v1', JSON.stringify(state.contacts));
+          localStorage.setItem('honor_dialer_logs_v1', JSON.stringify(state.callLogs));
+        } catch (e) {}
+      }
+
+      // --- Web Audio API DTMF Synthesizer ---
+      let audioCtx = null;
+      const DTMF_FREQS = {
+        '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
+        '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
+        '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
+        '*': [941, 1209], '0': [941, 1336], '#': [941, 1477],
+        '+': [941, 1336]
+      };
+
+      function playDtmfTone(digit) {
+        if (!state.soundEnabled) return;
+        const pair = DTMF_FREQS[digit];
+        if (!pair) return;
+        try {
+          if (!audioCtx) {
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) audioCtx = new AudioContextClass();
+          }
+          if (!audioCtx) return;
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+
+          const now = audioCtx.currentTime;
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc1.type = 'sine';
+          osc2.type = 'sine';
+          osc1.frequency.setValueAtTime(pair[0], now);
+          osc2.frequency.setValueAtTime(pair[1], now);
+
+          gain.gain.setValueAtTime(0.06, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc1.start(now);
+          osc2.start(now);
+          osc1.stop(now + 0.11);
+          osc2.stop(now + 0.11);
+        } catch (e) {}
+      }
+
+      // --- Utility Helpers ---
+      function getInitials(name) {
+        if (!name) return '#';
+        const clean = name.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+        if (!clean) return '#';
+        const parts = clean.split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+        return clean.slice(0, 2).toUpperCase();
+      }
+
+      function showToast(msg) {
+        const el = document.getElementById('toastBanner');
+        if (!el) return;
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => {
+          el.classList.add('hidden');
+        }, 2200);
+      }
+
+      function nameToT9Digits(name) {
+        return name.toLowerCase().split('').map(ch => LETTER_TO_T9[ch] || ch).join('');
+      }
+
+      function matchT9Contact(contact, query) {
+        if (!query) return null;
+        const cleanQuery = query.toLowerCase();
+        const numIndex = contact.number.indexOf(cleanQuery);
+        const t9Name = nameToT9Digits(contact.name);
+        const nameIndex = t9Name.indexOf(cleanQuery);
+        if (nameIndex !== -1 || numIndex !== -1) {
+          return { contact, nameIndex, numIndex, queryLen: cleanQuery.length };
+        }
+        return null;
+      }
+
+      function highlightSubstring(text, startIdx, length) {
+        if (startIdx < 0 || startIdx + length > text.length) return escapeHtml(text);
+        const before = escapeHtml(text.slice(0, startIdx));
+        const match = escapeHtml(text.slice(startIdx, startIdx + length));
+        const after = escapeHtml(text.slice(startIdx + length));
+        return `${before}<span class="text-honor-blue dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950/60 px-0.5 rounded">${match}</span>${after}`;
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // --- Render Functions ---
+      function renderTopControls() {
+        document.documentElement.classList.toggle('dark', state.darkMode);
+        document.getElementById('themeLabel').textContent = state.darkMode ? 'Light' : 'Dark';
+        document.getElementById('soundLabel').textContent = state.soundEnabled ? 'SFX On' : 'SFX Off';
+        document.getElementById('simModeBadge').textContent = state.dualSimMode ? 'Dual SIM' : 'Single SIM';
+
+        const sim2Btn = document.getElementById('btnCallSim2');
+        const sim1Btn = document.getElementById('btnCallSim1');
+        if (state.dualSimMode) {
+          sim2Btn.classList.remove('hidden');
+          sim1Btn.querySelector('.text-xs').textContent = 'SIM 1';
+        } else {
+          sim2Btn.classList.add('hidden');
+          sim1Btn.querySelector('.text-xs').textContent = 'Call';
+        }
+      }
+
+      function renderTabs() {
+        const views = {
+          phone: document.getElementById('viewPhone'),
+          contacts: document.getElementById('viewContacts'),
+          favorites: document.getElementById('viewFavorites')
+        };
+        const btns = {
+          phone: document.getElementById('tabBtnPhone'),
+          contacts: document.getElementById('tabBtnContacts'),
+          favorites: document.getElementById('tabBtnFavorites')
+        };
+
+        Object.keys(views).forEach(k => {
+          const isActive = state.activeTab === k;
+          views[k].classList.toggle('hidden', !isActive);
+          btns[k].className = isActive
+            ? 'flex flex-col items-center justify-center gap-1 text-honor-blue dark:text-blue-400 transition'
+            : 'flex flex-col items-center justify-center gap-1 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition';
+        });
+      }
+
+      function renderDialpadState() {
+        const sheet = document.getElementById('keypadSheet');
+        const fab = document.getElementById('btnFloatingKeypad');
+        sheet.classList.toggle('keypad-hidden', !state.keypadVisible);
+        fab.classList.toggle('hidden', state.keypadVisible);
+
+        const numEl = document.getElementById('dialedNumberText');
+        const subEl = document.getElementById('dialedSubText');
+        const backBtn = document.getElementById('btnBackspace');
+        const copyBtn = document.getElementById('btnCopyNumber');
+        const clrBtn = document.getElementById('btnClearDialInput');
+        const t9Bar = document.getElementById('t9HeaderBar');
+
+        numEl.textContent = state.dialInput;
+
+        const hasInput = state.dialInput.length > 0;
+        backBtn.classList.toggle('opacity-0', !hasInput);
+        backBtn.classList.toggle('pointer-events-none', !hasInput);
+        copyBtn.classList.toggle('opacity-0', !hasInput);
+        copyBtn.classList.toggle('pointer-events-none', !hasInput);
+        clrBtn.classList.toggle('hidden', !hasInput);
+        t9Bar.classList.toggle('hidden', !hasInput);
+
+        if (!hasInput) {
+          subEl.textContent = 'Type number or T9 letters to search';
+        } else {
+          // Check if speed dial single key
+          if (state.dialInput.length === 1 && /^[2-9]$/.test(state.dialInput)) {
+            const slotNum = parseInt(state.dialInput, 10);
+            const speedContact = state.contacts.find(c => c.speedSlot === slotNum);
+            if (speedContact) {
+              subEl.textContent = `Speed Dial #${slotNum}: ${speedContact.name}`;
+              return;
+            }
+          }
+          const exact = state.contacts.find(c => c.number === state.dialInput);
+          if (exact) {
+            subEl.textContent = `${exact.name} · ${exact.tag}`;
+          } else {
+            subEl.textContent = 'Egypt · Smart T9 Filter Active';
+          }
+        }
+      }
+
+      function renderCallLogsAndT9() {
+        const listEl = document.getElementById('callLogList');
+        const missedBadge = document.getElementById('missedBadge');
+        const btnAll = document.getElementById('btnFilterAll');
+        const btnMissed = document.getElementById('btnFilterMissed');
+
+        // Update filter pills
+        const isAll = state.callFilter === 'all';
+        btnAll.className = isAll
+          ? 'px-3.5 py-1 rounded-full text-xs font-semibold transition bg-white dark:bg-honor-surfaceDark text-slate-900 dark:text-white shadow-sm'
+          : 'px-3.5 py-1 rounded-full text-xs font-medium transition text-slate-600 dark:text-slate-400';
+        btnMissed.className = !isAll
+          ? 'px-3.5 py-1 rounded-full text-xs font-semibold transition bg-white dark:bg-honor-surfaceDark text-slate-900 dark:text-white shadow-sm flex items-center gap-1'
+          : 'px-3.5 py-1 rounded-full text-xs font-medium transition text-slate-600 dark:text-slate-400 flex items-center gap-1';
+
+        const missedCount = state.callLogs.filter(l => l.type === 'missed').length;
+        missedBadge.textContent = missedCount;
+        missedBadge.classList.toggle('hidden', missedCount === 0);
+
+        // If user is typing on the keypad, show T9 smart search matches first!
+        if (state.dialInput.trim().length > 0) {
+          const matches = state.contacts
+            .map(c => matchT9Contact(c, state.dialInput.trim()))
+            .filter(Boolean);
+
+          document.getElementById('t9MatchSummary').textContent =
+            matches.length > 0
+              ? `${matches.length} T9 match${matches.length > 1 ? 'es' : ''} for "${state.dialInput}"`
+              : `No saved contact matches "${state.dialInput}"`;
+
+          if (matches.length === 0) {
+            listEl.innerHTML = `
+              <div class="p-5 text-center space-y-2">
+                <p class="text-xs text-slate-500 dark:text-slate-400">No T9 contact match for <span class="font-semibold text-slate-800 dark:text-slate-200">${escapeHtml(state.dialInput)}</span></p>
+                <div class="flex items-center justify-center gap-2 pt-1">
+                  <button type="button" data-action="call-raw" class="px-3.5 py-1.5 rounded-full bg-honor-green text-white text-xs font-semibold shadow-sm">
+                    Dial ${escapeHtml(state.dialInput)}
+                  </button>
+                  <button type="button" data-action="save-raw" class="px-3.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-950/70 text-honor-blue dark:text-blue-400 text-xs font-semibold">
+                    + New Contact
+                  </button>
+                </div>
+              </div>
+            `;
+            return;
+          }
+
+          listEl.innerHTML = matches.map(m => {
+            const c = m.contact;
+            const nameHtml = m.nameIndex !== -1
+              ? highlightSubstring(c.name, m.nameIndex, m.queryLen)
+              : escapeHtml(c.name);
+            const numHtml = m.numIndex !== -1
+              ? highlightSubstring(c.number, m.numIndex, m.queryLen)
+              : escapeHtml(c.number);
+
+            return `
+              <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                <button type="button" data-action="dial-contact" data-id="${c.id}" class="flex-1 flex items-center gap-3 text-left">
+                  <div class="w-10 h-10 rounded-full bg-gradient-to-tr ${c.color || 'from-blue-500 to-indigo-600'} text-white font-bold text-xs flex items-center justify-center shrink-0">
+                    ${getInitials(c.name)}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-slate-900 dark:text-white truncate">${nameHtml}</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <span>${numHtml}</span>
+                      <span>·</span>
+                      <span class="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800">SIM ${c.sim}</span>
+                    </div>
+                  </div>
+                </button>
+                <button type="button" data-action="fill-number" data-number="${escapeHtml(c.number)}" class="p-2 rounded-full text-honor-blue dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-slate-800" title="Fill Number">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17L17 7M7 7h10v10"/></svg>
+                </button>
+              </div>
+            `;
+          }).join('');
+          return;
+        }
+
+        // Standard Call History View
+        const filteredLogs = state.callFilter === 'missed'
+          ? state.callLogs.filter(l => l.type === 'missed')
+          : state.callLogs;
+
+        if (filteredLogs.length === 0) {
+          listEl.innerHTML = `
+            <div class="py-12 px-4 text-center">
+              <div class="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 mx-auto flex items-center justify-center text-slate-400 mb-2">
+                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              </div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400">No ${state.callFilter === 'missed' ? 'missed ' : ''}calls in history</p>
+            </div>
+          `;
+          return;
+        }
+
+        listEl.innerHTML = filteredLogs.map(log => {
+          const isMissed = log.type === 'missed';
+          const nameColor = isMissed ? 'text-honor-red font-semibold' : 'text-slate-900 dark:text-white font-semibold';
+          const countStr = log.count > 1 ? ` (${log.count})` : '';
+
+          let iconSvg = '';
+          if (log.type === 'incoming') {
+            iconSvg = `<svg class="w-3.5 h-3.5 text-honor-blue shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M17 7 7 17M17 17H7V7"/></svg>`;
+          } else if (log.type === 'outgoing') {
+            iconSvg = `<svg class="w-3.5 h-3.5 text-honor-green shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M7 17 17 7M7 7h10v10"/></svg>`;
+          } else {
+            iconSvg = `<svg class="w-3.5 h-3.5 text-honor-red shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m17 7-10 10M7 7l5 5"/></svg>`;
+          }
+
+          return `
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+              <button type="button" data-action="call-log" data-log-id="${log.id}" class="flex-1 min-w-0 text-left pr-2">
+                <div class="text-sm ${nameColor} truncate">${escapeHtml(log.name)}${countStr}</div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                  ${iconSvg}
+                  <span class="px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-300">SIM ${log.sim}</span>
+                  <span class="truncate">${escapeHtml(log.location || log.number)}</span>
+                </div>
+              </button>
+              <div class="flex items-center gap-2 shrink-0">
+                <div class="text-right">
+                  <div class="text-[11px] text-slate-400 dark:text-slate-500">${escapeHtml(log.time)}</div>
+                  <div class="text-[10px] text-slate-400 dark:text-slate-500">${escapeHtml(log.duration)}</div>
+                </div>
+                <button type="button" data-action="inspect-log" data-log-id="${log.id}" class="p-1.5 rounded-full text-slate-400 hover:text-honor-blue hover:bg-slate-100 dark:hover:bg-slate-800 transition" title="Call Details">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function renderContactsTab() {
+        const container = document.getElementById('contactsListContainer');
+        const countSub = document.getElementById('contactsCountSubtitle');
+        const clearBtn = document.getElementById('btnClearContactSearch');
+
+        countSub.textContent = `${state.contacts.length} contacts stored on device`;
+        clearBtn.classList.toggle('hidden', !state.contactSearch);
+
+        const q = state.contactSearch.trim().toLowerCase();
+        const sorted = [...state.contacts]
+          .filter(c => !q || c.name.toLowerCase().includes(q) || c.number.includes(q) || (c.tag && c.tag.toLowerCase().includes(q)))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        if (sorted.length === 0) {
+          container.innerHTML = `
+            <div class="bg-white dark:bg-honor-cardDark rounded-2xl p-8 text-center">
+              <p class="text-xs text-slate-500 dark:text-slate-400">No contacts match "${escapeHtml(state.contactSearch)}"</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="bg-white dark:bg-honor-cardDark rounded-2xl shadow-sm divide-y divide-slate-100 dark:divide-slate-800/80 overflow-hidden">
+            ${sorted.map(c => `
+              <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <button type="button" data-action="edit-contact" data-id="${c.id}" class="flex items-center gap-3 flex-1 min-w-0 text-left">
+                  <div class="w-10 h-10 rounded-full bg-gradient-to-tr ${c.color || 'from-blue-600 to-indigo-600'} text-white font-bold text-xs flex items-center justify-center shrink-0">
+                    ${getInitials(c.name)}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-sm font-semibold text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                      <span class="truncate">${escapeHtml(c.name)}</span>
+                      ${c.favorite ? `<svg class="w-3.5 h-3.5 text-amber-400 fill-current shrink-0" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>` : ''}
+                    </div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      ${escapeHtml(c.number)} · ${escapeHtml(c.tag || 'Mobile')}
+                    </div>
+                  </div>
+                </button>
+                <div class="flex items-center gap-1 shrink-0">
+                  <button type="button" data-action="toggle-fav" data-id="${c.id}" class="p-2 rounded-full text-slate-400 hover:text-amber-400 transition" title="Toggle Favorite">
+                    <svg class="w-4 h-4 ${c.favorite ? 'text-amber-400 fill-current' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  </button>
+                  <button type="button" data-action="dial-contact" data-id="${c.id}" class="p-2 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-honor-green hover:bg-emerald-100 transition" title="Call on SIM ${c.sim}">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      function renderFavoritesTab() {
+        const container = document.getElementById('favoritesListContainer');
+        const favs = state.contacts.filter(c => c.favorite);
+
+        const cardsHtml = favs.length === 0
+          ? `<div class="bg-white dark:bg-honor-cardDark rounded-2xl p-6 text-center text-xs text-slate-500">No favorite contacts starred yet. Tap the star icon on any contact to pin it here.</div>`
+          : `<div class="grid grid-cols-2 gap-2.5">
+              ${favs.map(c => `
+                <div class="bg-white dark:bg-honor-cardDark rounded-2xl p-3.5 shadow-sm border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-tr ${c.color || 'from-blue-600 to-indigo-600'} text-white font-bold text-xs flex items-center justify-center">
+                      ${getInitials(c.name)}
+                    </div>
+                    ${c.speedSlot ? `<span class="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/80 text-honor-blue dark:text-blue-400 text-[10px] font-bold">Key ${c.speedSlot}</span>` : ''}
+                  </div>
+                  <div class="my-2.5">
+                    <div class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(c.name)}</div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(c.number)}</div>
+                  </div>
+                  <div class="flex items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/70">
+                    <button type="button" data-action="dial-contact-sim" data-id="${c.id}" data-sim="1" class="flex-1 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-honor-green text-[11px] font-semibold hover:bg-emerald-100 transition">
+                      SIM 1
+                    </button>
+                    <button type="button" data-action="dial-contact-sim" data-id="${c.id}" data-sim="2" class="flex-1 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-honor-blue dark:text-blue-400 text-[11px] font-semibold hover:bg-blue-100 transition">
+                      SIM 2
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>`;
+
+        container.innerHTML = cardsHtml;
+      }
+
+      function renderSpeedDialModal() {
+        const grid = document.getElementById('speedDialGrid');
+        const slots = [2, 3, 4, 5, 6, 7, 8, 9];
+        grid.innerHTML = slots.map(slot => {
+          const assigned = state.contacts.find(c => c.speedSlot === slot);
+          if (assigned) {
+            return `
+              <button type="button" data-action="speed-slot-call" data-id="${assigned.id}" class="p-3 rounded-2xl bg-slate-50 dark:bg-honor-surfaceDark hover:bg-blue-50 dark:hover:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 text-left transition flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-honor-blue text-white font-bold text-sm flex items-center justify-center shrink-0">
+                  ${slot}
+                </div>
+                <div class="min-w-0">
+                  <div class="text-xs font-bold text-slate-900 dark:text-white truncate">${escapeHtml(assigned.name)}</div>
+                  <div class="text-[10px] text-slate-500 dark:text-slate-400 truncate">${escapeHtml(assigned.number)}</div>
+                </div>
+              </button>
+            `;
+          }
+          return `
+            <button type="button" data-action="speed-slot-assign" data-slot="${slot}" class="p-3 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-left hover:border-honor-blue transition flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold text-sm flex items-center justify-center shrink-0">
+                ${slot}
+              </div>
+              <div class="min-w-0">
+                <div class="text-xs font-semibold text-slate-500 dark:text-slate-400">+ Assign Key ${slot}</div>
+                <div class="text-[10px] text-slate-400">Empty slot</div>
+              </div>
+            </button>
+          `;
+        }).join('');
+      }
+
+      function renderAll() {
+        renderTopControls();
+        renderTabs();
+        renderDialpadState();
+        renderCallLogsAndT9();
+        renderContactsTab();
+        renderFavoritesTab();
+      }
+
+      // --- Calling Flow ---
+      function startCall(number, simNumber, explicitContact) {
+        const cleanNum = (number || '').trim();
+        if (!cleanNum) {
+          // If user hits call with empty input, copy last dialed number into input like Honor MagicOS!
+          const lastLog = state.callLogs[0];
+          if (lastLog) {
+            state.dialInput = lastLog.number;
+            renderAll();
+            showToast('Filled last dialed number');
+          }
+          return;
+        }
+
+        // Check single-digit speed dial (2-9)
+        let targetContact = explicitContact || state.contacts.find(c => c.number === cleanNum);
+        let finalNumber = cleanNum;
+        if (!targetContact && /^[2-9]$/.test(cleanNum)) {
+          const slotContact = state.contacts.find(c => c.speedSlot === parseInt(cleanNum, 10));
+          if (slotContact) {
+            targetContact = slotContact;
+            finalNumber = slotContact.number;
+          }
+        }
+
+        const callerName = targetContact ? targetContact.name : finalNumber;
+        const chosenSim = simNumber || (targetContact ? targetContact.sim : 1);
+
+        state.activeCall = {
+          contactId: targetContact ? targetContact.id : null,
+          name: callerName,
+          number: finalNumber,
+          location: targetContact ? targetContact.tag : 'Egypt · Outgoing',
+          sim: chosenSim,
+          seconds: 0,
+          connected: false,
+          muted: false,
+          speaker: false,
+          onHold: false,
+          recording: false,
+          dtmfSent: ''
+        };
+
+        // Populate overlay UI
+        const overlay = document.getElementById('inCallOverlay');
+        overlay.classList.remove('hidden');
+        document.getElementById('inCallSimBadge').textContent = `SIM ${chosenSim} · HD Voice`;
+        document.getElementById('inCallAvatar').textContent = getInitials(callerName);
+        document.getElementById('inCallName').textContent = callerName;
+        document.getElementById('inCallNumber').textContent = finalNumber;
+        document.getElementById('inCallTimer').textContent = 'Dialing...';
+        document.getElementById('inCallRecordBadge').classList.add('hidden');
+        document.getElementById('inCallDtmfPad').classList.add('hidden');
+        document.getElementById('inCallDtmfDisplay').textContent = '';
+        updateInCallButtonStyles();
+
+        playDtmfTone('1');
+        if (window.AndroidDialerBridge && typeof window.AndroidDialerBridge.placeCall === 'function') {
+          try {
+            window.AndroidDialerBridge.placeCall(finalNumber, chosenSim);
+          } catch (e) {}
+        }
+
+        clearInterval(state.callInterval);
+        clearTimeout(state.connectTimeout);
+
+        state.connectTimeout = setTimeout(() => {
+          if (!state.activeCall) return;
+          state.activeCall.connected = true;
+          document.getElementById('inCallTimer').textContent = '00:00';
+          state.callInterval = setInterval(() => {
+            if (!state.activeCall || state.activeCall.onHold) return;
+            state.activeCall.seconds += 1;
+            const mins = String(Math.floor(state.activeCall.seconds / 60)).padStart(2, '0');
+            const secs = String(state.activeCall.seconds % 60).padStart(2, '0');
+            document.getElementById('inCallTimer').textContent = `${mins}:${secs}`;
+          }, 1000);
+        }, 1200);
+      }
+
+      function updateInCallButtonStyles() {
+        if (!state.activeCall) return;
+        const setToggleStyle = (btnId, active) => {
+          const btn = document.getElementById(btnId);
+          const circle = btn.querySelector('div');
+          circle.className = active
+            ? 'w-12 h-12 rounded-full bg-honor-blue text-white flex items-center justify-center transition shadow-md'
+            : 'w-12 h-12 rounded-full bg-white/10 group-hover:bg-white/20 flex items-center justify-center transition';
+        };
+        setToggleStyle('btnInCallRecord', state.activeCall.recording);
+        setToggleStyle('btnInCallMute', state.activeCall.muted);
+        setToggleStyle('btnInCallHold', state.activeCall.onHold);
+        setToggleStyle('btnInCallSpeaker', state.activeCall.speaker);
+        document.getElementById('inCallRecordBadge').classList.toggle('hidden', !state.activeCall.recording);
+      }
+
+      function endActiveCall() {
+        if (!state.activeCall) return;
+        clearInterval(state.callInterval);
+        clearTimeout(state.connectTimeout);
+
+        const mins = String(Math.floor(state.activeCall.seconds / 60)).padStart(2, '0');
+        const secs = String(state.activeCall.seconds % 60).padStart(2, '0');
+        const durationStr = state.activeCall.connected ? `${mins}:${secs}` : 'Cancelled';
+
+        state.callLogs.unshift({
+          id: 'l_' + Date.now(),
+          contactId: state.activeCall.contactId,
+          name: state.activeCall.name,
+          number: state.activeCall.number,
+          type: 'outgoing',
+          sim: state.activeCall.sim,
+          time: 'Just now',
+          duration: durationStr,
+          count: 1,
+          location: state.activeCall.location
+        });
+
+        state.activeCall = null;
+        state.dialInput = '';
+        persistState();
+        document.getElementById('inCallOverlay').classList.add('hidden');
+        renderAll();
+        showToast('Call ended & logged');
+      }
+
+      // --- Contact Modal Handlers ---
+      function openContactModal(contactToEdit, prefillNumber, prefillSlot) {
+        const modal = document.getElementById('contactModal');
+        const title = document.getElementById('contactModalTitle');
+        const delBtn = document.getElementById('btnDeleteContactModal');
+
+        document.getElementById('contactIdInput').value = contactToEdit ? contactToEdit.id : '';
+        document.getElementById('contactNameInput').value = contactToEdit ? contactToEdit.name : '';
+        document.getElementById('contactNumberInput').value = contactToEdit ? contactToEdit.number : (prefillNumber || '');
+        document.getElementById('contactTagInput').value = contactToEdit ? (contactToEdit.tag || '') : 'Mobile · Egypt';
+        document.getElementById('contactSimInput').value = contactToEdit ? String(contactToEdit.sim || 1) : '1';
+        document.getElementById('contactFavInput').checked = contactToEdit ? Boolean(contactToEdit.favorite) : false;
+        document.getElementById('contactSpeedSlotInput').value = contactToEdit && contactToEdit.speedSlot ? String(contactToEdit.speedSlot) : (prefillSlot ? String(prefillSlot) : '');
+
+        title.textContent = contactToEdit ? 'Edit Contact' : 'New Contact';
+        delBtn.classList.toggle('hidden', !contactToEdit);
+        modal.classList.remove('hidden');
+      }
+
+      function closeContactModal() {
+        document.getElementById('contactModal').classList.add('hidden');
+      }
+
+      // --- Attach Event Listeners ---
+      // Top Prototype Bar
+      document.getElementById('btnToggleTheme').addEventListener('click', () => {
+        state.darkMode = !state.darkMode;
+        renderTopControls();
+      });
+
+      document.getElementById('btnToggleSound').addEventListener('click', () => {
+        state.soundEnabled = !state.soundEnabled;
+        renderTopControls();
+        showToast(state.soundEnabled ? 'Keypad tones enabled' : 'Keypad tones muted');
+      });
+
+      document.getElementById('btnToggleSimMode').addEventListener('click', () => {
+        state.dualSimMode = !state.dualSimMode;
+        renderTopControls();
+        showToast(state.dualSimMode ? 'Dual SIM bar enabled' : 'Single SIM bar enabled');
+      });
+
+      // Bottom Tab Navigation
+      document.getElementById('tabBtnPhone').addEventListener('click', () => {
+        state.activeTab = 'phone';
+        renderAll();
+      });
+      document.getElementById('tabBtnContacts').addEventListener('click', () => {
+        state.activeTab = 'contacts';
+        renderAll();
+      });
+      document.getElementById('tabBtnFavorites').addEventListener('click', () => {
+        state.activeTab = 'favorites';
+        renderAll();
+      });
+
+      // Call Filter Switcher
+      document.getElementById('btnFilterAll').addEventListener('click', () => {
+        state.callFilter = 'all';
+        renderCallLogsAndT9();
+      });
+      document.getElementById('btnFilterMissed').addEventListener('click', () => {
+        state.callFilter = 'missed';
+        renderCallLogsAndT9();
+      });
+
+      // Top Header Buttons
+      document.getElementById('btnOpenNewContactTop').addEventListener('click', () => {
+        openContactModal(null, state.dialInput, null);
+      });
+      document.getElementById('btnAddContactFromTab').addEventListener('click', () => {
+        openContactModal(null, '', null);
+      });
+      document.getElementById('btnAddDialedToContacts').addEventListener('click', () => {
+        openContactModal(null, state.dialInput, null);
+      });
+      document.getElementById('btnClearLogs').addEventListener('click', () => {
+        if (state.callLogs.length === 0) {
+          showToast('Call history is already empty');
+          return;
+        }
+        state.callLogs = [];
+        persistState();
+        renderCallLogsAndT9();
+        showToast('Cleared call history');
+      });
+
+      // Speed Dial Modal
+      document.getElementById('btnOpenSpeedDialModal').addEventListener('click', () => {
+        renderSpeedDialModal();
+        document.getElementById('speedDialModal').classList.remove('hidden');
+      });
+      document.getElementById('btnManageSpeedDialFav').addEventListener('click', () => {
+        renderSpeedDialModal();
+        document.getElementById('speedDialModal').classList.remove('hidden');
+      });
+      document.getElementById('btnCloseSpeedDialModal').addEventListener('click', () => {
+        document.getElementById('speedDialModal').classList.add('hidden');
+      });
+
+      document.getElementById('speedDialGrid').addEventListener('click', (e) => {
+        const callBtn = e.target.closest('[data-action="speed-slot-call"]');
+        if (callBtn) {
+          const contact = state.contacts.find(c => c.id === callBtn.dataset.id);
+          document.getElementById('speedDialModal').classList.add('hidden');
+          if (contact) startCall(contact.number, contact.sim, contact);
+          return;
+        }
+        const assignBtn = e.target.closest('[data-action="speed-slot-assign"]');
+        if (assignBtn) {
+          const slot = parseInt(assignBtn.dataset.slot, 10);
+          document.getElementById('speedDialModal').classList.add('hidden');
+          openContactModal(null, '', slot);
+        }
+      });
+
+      // Keypad Digits
+      document.getElementById('keypadGrid').addEventListener('click', (e) => {
+        const keyBtn = e.target.closest('[data-digit]');
+        if (!keyBtn) return;
+        const digit = keyBtn.dataset.digit;
+        playDtmfTone(digit);
+        state.dialInput += digit;
+        renderDialpadState();
+        renderCallLogsAndT9();
+      });
+
+      // Insert '+' button
+      document.getElementById('btnInsertPlus').addEventListener('click', () => {
+        playDtmfTone('+');
+        if (!state.dialInput.startsWith('+')) {
+          state.dialInput = '+' + state.dialInput;
+        } else {
+          state.dialInput += '+';
+        }
+        renderDialpadState();
+        renderCallLogsAndT9();
+      });
+
+      // Backspace & Clear
+      document.getElementById('btnBackspace').addEventListener('click', () => {
+        state.dialInput = state.dialInput.slice(0, -1);
+        renderDialpadState();
+        renderCallLogsAndT9();
+      });
+      document.getElementById('btnClearDialInput').addEventListener('click', () => {
+        state.dialInput = '';
+        renderDialpadState();
+        renderCallLogsAndT9();
+      });
+
+      // Copy Number
+      document.getElementById('btnCopyNumber').addEventListener('click', () => {
+        if (!state.dialInput) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(state.dialInput);
+          } else {
+            const temp = document.createElement('textarea');
+            temp.value = state.dialInput;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+          }
+        } catch (err) {}
+        showToast(`Copied ${state.dialInput}`);
+      });
+
+      // Show / Hide Keypad
+      document.getElementById('btnHideKeypad').addEventListener('click', () => {
+        state.keypadVisible = false;
+        renderDialpadState();
+      });
+      document.getElementById('btnFloatingKeypad').addEventListener('click', () => {
+        state.keypadVisible = true;
+        renderDialpadState();
+      });
+
+      // Dual SIM Call Buttons
+      document.getElementById('btnCallSim1').addEventListener('click', () => {
+        startCall(state.dialInput, 1, null);
+      });
+      document.getElementById('btnCallSim2').addEventListener('click', () => {
+        startCall(state.dialInput, 2, null);
+      });
+
+      // Call Log & T9 List Delegated Clicks
+      document.getElementById('callLogList').addEventListener('click', (e) => {
+        const actionEl = e.target.closest('[data-action]');
+        if (!actionEl) return;
+        const action = actionEl.dataset.action;
+
+        if (action === 'call-raw') {
+          startCall(state.dialInput, 1, null);
+        } else if (action === 'save-raw') {
+          openContactModal(null, state.dialInput, null);
+        } else if (action === 'dial-contact') {
+          const contact = state.contacts.find(c => c.id === actionEl.dataset.id);
+          if (contact) startCall(contact.number, contact.sim, contact);
+        } else if (action === 'fill-number') {
+          state.dialInput = actionEl.dataset.number || '';
+          state.keypadVisible = true;
+          renderDialpadState();
+          renderCallLogsAndT9();
+        } else if (action === 'call-log') {
+          const log = state.callLogs.find(l => l.id === actionEl.dataset.logId);
+          if (log) {
+            const contact = log.contactId ? state.contacts.find(c => c.id === log.contactId) : null;
+            startCall(log.number, log.sim, contact);
+          }
+        } else if (action === 'inspect-log') {
+          const log = state.callLogs.find(l => l.id === actionEl.dataset.logId);
+          if (!log) return;
+          const existing = log.contactId ? state.contacts.find(c => c.id === log.contactId) : state.contacts.find(c => c.number === log.number);
+          if (existing) {
+            openContactModal(existing, null, null);
+          } else {
+            openContactModal(null, log.number, null);
+          }
+        }
+      });
+
+      // Contacts Search & List Delegated Clicks
+      document.getElementById('inputSearchContacts').addEventListener('input', (e) => {
+        state.contactSearch = e.target.value;
+        renderContactsTab();
+      });
+      document.getElementById('btnClearContactSearch').addEventListener('click', () => {
+        state.contactSearch = '';
+        document.getElementById('inputSearchContacts').value = '';
+        renderContactsTab();
+      });
+
+      document.getElementById('contactsListContainer').addEventListener('click', (e) => {
+        const actionEl = e.target.closest('[data-action]');
+        if (!actionEl) return;
+        const action = actionEl.dataset.action;
+        const contact = state.contacts.find(c => c.id === actionEl.dataset.id);
+        if (!contact) return;
+
+        if (action === 'edit-contact') {
+          openContactModal(contact, null, null);
+        } else if (action === 'toggle-fav') {
+          contact.favorite = !contact.favorite;
+          persistState();
+          renderContactsTab();
+          renderFavoritesTab();
+          showToast(contact.favorite ? `Added ${contact.name} to Favorites` : `Removed from Favorites`);
+        } else if (action === 'dial-contact') {
+          startCall(contact.number, contact.sim, contact);
+        }
+      });
+
+      // Favorites Tab Delegated Clicks
+      document.getElementById('favoritesListContainer').addEventListener('click', (e) => {
+        const actionEl = e.target.closest('[data-action="dial-contact-sim"]');
+        if (!actionEl) return;
+        const contact = state.contacts.find(c => c.id === actionEl.dataset.id);
+        const sim = parseInt(actionEl.dataset.sim, 10) || 1;
+        if (contact) startCall(contact.number, sim, contact);
+      });
+
+      // Contact Modal Form Submit & Delete
+      document.getElementById('btnCloseContactModal').addEventListener('click', closeContactModal);
+      document.getElementById('btnCancelContactModal').addEventListener('click', closeContactModal);
+
+      document.getElementById('formContact').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = document.getElementById('contactIdInput').value;
+        const name = document.getElementById('contactNameInput').value.trim();
+        const number = document.getElementById('contactNumberInput').value.trim();
+        const tag = document.getElementById('contactTagInput').value.trim() || 'Mobile';
+        const sim = parseInt(document.getElementById('contactSimInput').value, 10) || 1;
+        const favorite = document.getElementById('contactFavInput').checked;
+        const slotVal = document.getElementById('contactSpeedSlotInput').value;
+        const speedSlot = slotVal ? parseInt(slotVal, 10) : null;
+
+        if (!name || !number) return;
+
+        // Clear duplicate speed slot if assigned elsewhere
+        if (speedSlot) {
+          state.contacts.forEach(c => {
+            if (c.speedSlot === speedSlot && c.id !== id) c.speedSlot = null;
+          });
+        }
+
+        if (id) {
+          const existing = state.contacts.find(c => c.id === id);
+          if (existing) {
+            existing.name = name;
+            existing.number = number;
+            existing.tag = tag;
+            existing.sim = sim;
+            existing.favorite = favorite;
+            existing.speedSlot = speedSlot;
+          }
+          showToast(`Updated ${name}`);
+        } else {
+          const palettes = [
+            'from-blue-600 to-indigo-600',
+            'from-emerald-500 to-teal-600',
+            'from-amber-500 to-orange-600',
+            'from-purple-500 to-indigo-600',
+            'from-rose-500 to-red-600'
+          ];
+          state.contacts.push({
+            id: 'c_' + Date.now(),
+            name,
+            number,
+            tag,
+            sim,
+            favorite,
+            speedSlot,
+            color: palettes[state.contacts.length % palettes.length]
+          });
+          showToast(`Saved ${name}`);
+        }
+
+        persistState();
+        closeContactModal();
+        renderAll();
+      });
+
+      document.getElementById('btnDeleteContactModal').addEventListener('click', () => {
+        const id = document.getElementById('contactIdInput').value;
+        if (!id) return;
+        state.contacts = state.contacts.filter(c => c.id !== id);
+        persistState();
+        closeContactModal();
+        renderAll();
+        showToast('Contact deleted');
+      });
+
+      // In-Call Controls
+      document.getElementById('btnInCallRecord').addEventListener('click', () => {
+        if (!state.activeCall) return;
+        state.activeCall.recording = !state.activeCall.recording;
+        updateInCallButtonStyles();
+      });
+      document.getElementById('btnInCallMute').addEventListener('click', () => {
+        if (!state.activeCall) return;
+        state.activeCall.muted = !state.activeCall.muted;
+        updateInCallButtonStyles();
+      });
+      document.getElementById('btnInCallHold').addEventListener('click', () => {
+        if (!state.activeCall) return;
+        state.activeCall.onHold = !state.activeCall.onHold;
+        document.getElementById('inCallTimer').textContent = state.activeCall.onHold ? 'Call on Hold' : 'Resumed';
+        updateInCallButtonStyles();
+      });
+      document.getElementById('btnInCallSpeaker').addEventListener('click', () => {
+        if (!state.activeCall) return;
+        state.activeCall.speaker = !state.activeCall.speaker;
+        updateInCallButtonStyles();
+      });
+      document.getElementById('btnInCallKeypad').addEventListener('click', () => {
+        const pad = document.getElementById('inCallDtmfPad');
+        pad.classList.toggle('hidden');
+      });
+      document.getElementById('btnInCallSimSwitch').addEventListener('click', () => {
+        if (!state.activeCall) return;
+        state.activeCall.sim = state.activeCall.sim === 1 ? 2 : 1;
+        document.getElementById('inCallSimBadge').textContent = `SIM ${state.activeCall.sim} · HD Voice`;
+        showToast(`Switched active line to SIM ${state.activeCall.sim}`);
+      });
+      document.getElementById('inCallDtmfPad').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-incall-digit]');
+        if (!btn || !state.activeCall) return;
+        const d = btn.dataset.incallDigit;
+        playDtmfTone(d);
+        state.activeCall.dtmfSent += d;
+        document.getElementById('inCallDtmfDisplay').textContent = state.activeCall.dtmfSent;
+      });
+      document.getElementById('btnEndCall').addEventListener('click', endActiveCall);
+
+      // Physical Keyboard Support for Dialing
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+        if (!document.getElementById('contactModal').classList.contains('hidden')) return;
+        if (state.activeCall) {
+          if (/^[0-9*#]$/.test(e.key)) {
+            playDtmfTone(e.key);
+            state.activeCall.dtmfSent += e.key;
+            document.getElementById('inCallDtmfPad').classList.remove('hidden');
+            document.getElementById('inCallDtmfDisplay').textContent = state.activeCall.dtmfSent;
+          } else if (e.key === 'Escape') {
+            endActiveCall();
+          }
+          return;
+        }
+        if (state.activeTab !== 'phone') return;
+        if (/^[0-9*#+]$/.test(e.key)) {
+          playDtmfTone(e.key);
+          state.dialInput += e.key;
+          state.keypadVisible = true;
+          renderDialpadState();
+          renderCallLogsAndT9();
+        } else if (e.key === 'Backspace') {
+          state.dialInput = state.dialInput.slice(0, -1);
+          renderDialpadState();
+          renderCallLogsAndT9();
+        } else if (e.key === 'Enter' && state.dialInput) {
+          startCall(state.dialInput, 1, null);
+        }
+      });
+
+      // Live Status Bar Clock
+      function updateClock() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const el = document.getElementById('statusClock');
+        if (el) el.textContent = `${hh}:${mm}`;
+      }
+      updateClock();
+      setInterval(updateClock, 30000);
+
+      // --- Default Phone App Role & Native Android WebView Bridge ---
+        function renderDefaultRoleUI() {
+          const banner = document.getElementById('defaultDialerBanner');
+          const dot = document.getElementById('defaultRoleBadgeDot');
+          const txt = document.getElementById('defaultRoleBtnText');
+          if (banner) {
+            banner.classList.toggle('hidden', state.isDefaultDialer);
+          }
+          if (dot && txt) {
+            dot.className = state.isDefaultDialer
+              ? 'w-1.5 h-1.5 rounded-full bg-honor-green'
+              : 'w-1.5 h-1.5 rounded-full bg-amber-500';
+            txt.textContent = state.isDefaultDialer ? 'Default App ✓' : 'Set Default';
+          }
+        }
+
+        function openDefaultRoleModal() {
+          // If running inside the compiled Android APK WebView, also trigger native RoleManager prompt
+          if (window.AndroidDialerBridge && typeof window.AndroidDialerBridge.requestDefaultDialerRole === 'function') {
+            try {
+              window.AndroidDialerBridge.requestDefaultDialerRole();
+            } catch (e) {}
+          }
+          document.getElementById('defaultRoleModal').classList.remove('hidden');
+        }
+
+        document.getElementById('btnOpenDefaultRoleModal').addEventListener('click', openDefaultRoleModal);
+        document.getElementById('btnBannerSetDefault').addEventListener('click', openDefaultRoleModal);
+        document.getElementById('btnCancelDefaultRole').addEventListener('click', () => {
+          document.getElementById('defaultRoleModal').classList.add('hidden');
+        });
+        document.getElementById('btnConfirmDefaultRole').addEventListener('click', () => {
+          const selected = document.querySelector('input[name="defaultDialerChoice"]:checked');
+          const isHonor = !selected || selected.value === 'honor';
+          state.isDefaultDialer = isHonor;
+          try {
+            localStorage.setItem('honor_dialer_is_default', isHonor ? '1' : '0');
+          } catch (e) {}
+          document.getElementById('defaultRoleModal').classList.add('hidden');
+          renderDefaultRoleUI();
+          showToast(isHonor ? 'Set as Android Default Phone App (ROLE_DIALER)' : 'Reverted to System Phone App');
+        });
+
+        // Expose callback for Native Android MainActivity to notify WebView when ROLE_DIALER is granted
+        window.onDefaultDialerRoleChanged = function (granted) {
+          state.isDefaultDialer = Boolean(granted);
+          renderDefaultRoleUI();
+          showToast(granted ? 'Default Phone App role granted' : 'Default Phone App role not granted');
+        };
+
+        // --- Incoming Call Simulator (InCallService test) ---
+        document.getElementById('btnSimulateIncoming').addEventListener('click', () => {
+          const sampleCaller = state.contacts[1] || state.contacts[0];
+          document.getElementById('incomingName').textContent = sampleCaller.name;
+          document.getElementById('incomingNumber').textContent = sampleCaller.number + ' · ' + (sampleCaller.tag || 'Mobile');
+          document.getElementById('incomingAvatar').textContent = getInitials(sampleCaller.name);
+          document.getElementById('incomingSimBadge').textContent = 'SIM ' + (sampleCaller.sim || 1) + ' · Incoming HD Call';
+          document.getElementById('incomingCallOverlay').classList.remove('hidden');
+          playDtmfTone('5');
+        });
+
+        document.getElementById('btnDeclineIncoming').addEventListener('click', () => {
+          document.getElementById('incomingCallOverlay').classList.add('hidden');
+          const sampleCaller = state.contacts[1] || state.contacts[0];
+          state.callLogs.unshift({
+            id: 'l_' + Date.now(),
+            contactId: sampleCaller ? sampleCaller.id : null,
+            name: sampleCaller ? sampleCaller.name : 'Unknown Caller',
+            number: sampleCaller ? sampleCaller.number : '01004528810',
+            type: 'missed',
+            sim: sampleCaller ? sampleCaller.sim : 1,
+            time: 'Just now',
+            duration: 'Missed',
+            count: 1,
+            location: sampleCaller ? sampleCaller.tag : 'Egypt · Missed'
+          });
+          persistState();
+          renderAll();
+          showToast('Incoming call declined');
+        });
+
+        document.getElementById('btnQuickSmsReply').addEventListener('click', () => {
+          document.getElementById('incomingCallOverlay').classList.add('hidden');
+          showToast('Sent quick SMS reply & declined call');
+        });
+
+        document.getElementById('btnAnswerIncoming').addEventListener('click', () => {
+          document.getElementById('incomingCallOverlay').classList.add('hidden');
+          const sampleCaller = state.contacts[1] || state.contacts[0];
+          startCall(sampleCaller.number, sampleCaller.sim || 1, sampleCaller);
+        });
+
+        try {
+          if (localStorage.getItem('honor_dialer_is_default') === '1') {
+            state.isDefaultDialer = true;
+          }
+        } catch (e) {}
+
+        // Initial Render
+        renderAll();
+        renderDefaultRoleUI();
+    })();
+  </script>
+</body>
+</html>
